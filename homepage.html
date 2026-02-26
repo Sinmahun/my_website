@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ระบบลงเวลาเข้า-ออก</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="container">
+    <h1>ระบบลงเวลาเข้า-ออก</h1>
+
+    <hr>
+
+    <!-- กล้อง -->
+    <video id="video" autoplay></video>
+
+    <hr>
+
+    <!-- เลือกช่วงเวลา -->
+    <h3>เลือกช่วงเวลา</h3>
+    <div class="time-buttons">
+      <button onclick="startCamera(); checkIn('เช้า')">เช้า</button>
+      <button onclick="startCamera(); checkIn('กลางวัน')">กลางวัน</button>
+      <button onclick="startCamera(); checkIn('บ่าย')">บ่าย</button>
+      <button onclick="startCamera(); checkIn('เย็น')">เย็น</button>
+    </div>
+    <br>
+    <br>
+    
+    
+    <div id="map"></div>
+
+    <hr>
+
+    <!-- แสดงผล -->
+    <div id="result"></div>
+
+  </div>
+
+<script src="script.js"></script>
+
+<!-- ⚠️ ใส่ API KEY ของคุณ -->
+<script async
+src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB8-zxclxIJk-EH8SyRmejQCxlOWMzDrX8&libraries=geometry&callback=initMap">
+</script>
+
+</body>
+</html>
