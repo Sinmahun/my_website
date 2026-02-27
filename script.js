@@ -1,123 +1,173 @@
 let map;
 let officeMarker;
 let userMarker;
-//13.821285112356703, 100.03890459620975
-const officeLocation = {
-  lat: 13.821285112356703,
-  lng: 100.03890459620975
-};
+let isCameraStarted = false;
+let currentPeriod = "";
 
+// --- ส่วนสำคัญ: ประกาศ Global Variable เพื่อให้เรียกใช้ได้ทุกฟังก์ชัน ---
+let isFacePresent = false; 
+let detectedOnce = true; 
+
+const officeLocation = { lat: 13.821285, lng: 100.038904 };
 const allowedRadius = 200; // เมตร
 
-// เปิดกล้อง
-async function startCamera() {
-  const video = document.getElementById("video");
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  video.srcObject = stream;
-}
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const canvasCtx = canvas.getContext("2d");
+const statusText = document.getElementById("status");
+const downloadLink = document.getElementById("downloadLink");
 
-// โหลดแผนที่ (Google เรียกอัตโนมัติ)
-function initMap() {
+// --- MediaPipe Face Detection ---
+const faceDetection = new FaceDetection({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
+});
 
-  map = new google.maps.Map(document.getElementById("map"), {
-    zoom: 17,
-    center: officeLocation
-  });
+faceDetection.setOptions({
+    model: "short",
+    minDetectionConfidence: 0.6
+});
 
-  // หมุดบริษัท
-  officeMarker = new google.maps.Marker({
-    position: officeLocation,
-    map: map,
-    title: "บริษัท"
-  });
+faceDetection.onResults(results => {
+    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (results.detections && results.detections.length > 0) {
+        isFacePresent = true; // ตรวจเจอใบหน้า
+        statusText.innerText = "สถานะ: ตรวจพบใบหน้า ✅";
+        statusText.style.color = "green";
 
-  // วงกลม 200 เมตร
-  new google.maps.Circle({
-    strokeColor: "#00FF00",
-    strokeOpacity: 0.8,
-    strokeWeight: 2,
-    fillColor: "#00FF00",
-    fillOpacity: 0.2,
-    map: map,
-    center: officeLocation,
-    radius: allowedRadius
-  });
-}
+        results.detections.forEach(detection => {
+            const box = detection.boundingBox;
+            const x = box.xCenter * canvas.width - (box.width * canvas.width) / 2;
+            const y = box.yCenter * canvas.height - (box.height * canvas.height) / 2;
+            const width = box.width * canvas.width;
+            const height = box.height * canvas.height;
+            canvasCtx.strokeStyle = "#00FF00";
+            canvasCtx.lineWidth = 3;
+            canvasCtx.strokeRect(x, y, width, height);
+        });
 
-// ฟังก์ชันกลางสำหรับคำนวณระยะ (ใช้ Google)
-function calculateDistance(userLocation) {
-  return google.maps.geometry.spherical.computeDistanceBetween(
-    new google.maps.LatLng(userLocation),
-    new google.maps.LatLng(officeLocation)
-  );
-}
-
-// กดตรวจสอบตำแหน่ง
-function checkLocation() {
-
-  if (!navigator.geolocation) {
-    alert("อุปกรณ์ไม่รองรับ GPS");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(position => {
-
-    const userLocation = {
-      lat: position.coords.latitude,
-      lng: position.coords.longitude
-    };
-
-    if (userMarker) {
-      userMarker.setMap(null);
+        // ถ้ามีการกดปุ่ม (detectedOnce = false) ให้ทำการบันทึกภาพ
+        if (!detectedOnce) {
+            detectedOnce = true;
+            captureSnapshot();
+        }
+    } else {
+        isFacePresent = false; // ไม่เจอใบหน้า
+        statusText.innerText = "สถานะ: ไม่พบใบหน้า ❌";
+        statusText.style.color = "red";
     }
+});
 
-    userMarker = new google.maps.Marker({
-      position: userLocation,
-      map: map,
-      title: "ตำแหน่งคุณ"
+async function startCamera() {
+    if (isCameraStarted) return;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        const camera = new Camera(video, {
+            onFrame: async () => {
+                await faceDetection.send({ image: video });
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+        isCameraStarted = true;
+    } catch (err) {
+        statusText.innerText = "ไม่สามารถเข้าถึงกล้องได้";
+    }
+}
+
+function captureSnapshot() {
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = video.videoWidth;
+    tempCanvas.height = video.videoHeight;
+    const ctx = tempCanvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
+    const imageData = tempCanvas.toDataURL("image/png");
+    downloadLink.href = imageData;
+    downloadLink.download = `checkin_${currentPeriod}_${Date.now()}.png`;
+    downloadLink.innerText = `คลิกเพื่อดูรูปหลักฐาน (ช่วง${currentPeriod})`;
+    downloadLink.style.display = "inline-block";
+}
+
+// --- Google Maps ---
+function initMap() {
+    map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 17,
+        center: officeLocation
     });
 
-    const distance = calculateDistance(userLocation);
+    officeMarker = new google.maps.Marker({
+        position: officeLocation,
+        map: map,
+        title: "บริษัท"
+    });
 
-    document.getElementById("result").innerHTML =
-      distance <= allowedRadius
-        ? `✅ อยู่ในระยะ ${Math.round(distance)} เมตร`
-        : `❌ อยู่นอกระยะ ${Math.round(distance)} เมตร`;
-
-  }, () => {
-    alert("ไม่สามารถดึงตำแหน่งได้");
-  });
+    new google.maps.Circle({
+        strokeColor: "#00FF00",
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: "#00FF00",
+        fillOpacity: 0.2,
+        map: map,
+        center: officeLocation,
+        radius: allowedRadius
+    });
+    
+    startCamera();
 }
 
-// กดลงเวลา
+function calculateDistance(userLocation) {
+    return google.maps.geometry.spherical.computeDistanceBetween(
+        new google.maps.LatLng(userLocation),
+        new google.maps.LatLng(officeLocation)
+    );
+}
+
+// --- ฟังก์ชันหลักเมื่อกดปุ่ม ---
 function checkIn(timePeriod) {
-
-  if (!navigator.geolocation) {
-    alert("อุปกรณ์ไม่รองรับ GPS");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(position => {
-
-    const userLocation = {
-      lat: position.coords.latitude,
-      lng: position.coords.longitude
-    };
-
-    const distance = calculateDistance(userLocation);
-
-    if (distance <= allowedRadius) {
-      document.getElementById("result").innerHTML =
-        `✅ ลงเวลา "${timePeriod}" สำเร็จ <br>
-         ระยะห่าง: ${Math.round(distance)} เมตร`;
-    } else {
-      document.getElementById("result").innerHTML =
-        `❌ คุณอยู่นอกพื้นที่อนุญาต <br>
-         ระยะห่าง: ${Math.round(distance)} เมตร`;
+    // 1. เช็คใบหน้าก่อนเป็นอันดับแรก
+    if (!isFacePresent) {
+        document.getElementById("result").innerHTML = 
+            `<span style="color: red;">❌ ลงเวลาไม่สำเร็จ: ไม่พบใบหน้าในกล้อง</span>`;
+        return;
     }
 
-  }, () => {
-    document.getElementById("result").innerHTML =
-      "❌ ไม่สามารถเข้าถึงตำแหน่งได้";
-  });
+    currentPeriod = timePeriod;
+    detectedOnce = false; // เปิดสิทธิ์ให้ระบบบันทึกรูปภาพใน Frame ถัดไป
+    document.getElementById("result").innerHTML = "⌛ กำลังตรวจสอบตำแหน่ง GPS...";
+
+    if (!navigator.geolocation) {
+        alert("อุปกรณ์ไม่รองรับ GPS");
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(position => {
+        const userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+        };
+
+        if (userMarker) userMarker.setMap(null);
+        userMarker = new google.maps.Marker({
+            position: userLocation,
+            map: map,
+            title: "ตำแหน่งของคุณ"
+        });
+
+        const distance = calculateDistance(userLocation);
+        const isSuccess = distance <= allowedRadius;
+
+        if (isSuccess) {
+            document.getElementById("result").innerHTML = 
+                `<span style="color: green;">✅ ลงชื่อ "${timePeriod}" สำเร็จ!<br>ระยะห่าง: ${Math.round(distance)} เมตร</span>`;
+        } else {
+            document.getElementById("result").innerHTML = 
+                `<span style="color: red;">❌ อยู่นอกพื้นที่อนุญาต<br>ระยะห่าง: ${Math.round(distance)} เมตร</span>`;
+        }
+
+    }, (error) => {
+        document.getElementById("result").innerHTML = "❌ ไม่สามารถเข้าถึงตำแหน่งได้ (กรุณาเปิด GPS)";
+    }, { enableHighAccuracy: true });
 }

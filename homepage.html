@@ -2,48 +2,46 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบลงเวลาเข้า-ออก</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 </head>
 <body>
 
   <div class="container">
     <h1>ระบบลงเวลาเข้า-ออก</h1>
-
     <hr>
 
-    <!-- กล้อง -->
-    <video id="video" autoplay></video>
-
-    <hr>
-
-    <!-- เลือกช่วงเวลา -->
-    <h3>เลือกช่วงเวลา</h3>
-    <div class="time-buttons">
-      <button onclick="startCamera(); checkIn('เช้า')">เช้า</button>
-      <button onclick="startCamera(); checkIn('กลางวัน')">กลางวัน</button>
-      <button onclick="startCamera(); checkIn('บ่าย')">บ่าย</button>
-      <button onclick="startCamera(); checkIn('เย็น')">เย็น</button>
+    <div class="video-container" style="position: relative;">
+      <video id="video" autoplay playsinline style="width: 100%; max-width: 640px; background: #000;"></video>
+      <canvas id="canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
     </div>
-    <br>
-    <br>
     
+    <p id="status">กำลังรอเปิดกล้อง...</p>
+    <a id="downloadLink" style="display:none; margin-bottom: 10px;">ดาวน์โหลดรูป</a>
     
-    <div id="map"></div>
-
     <hr>
 
-    <!-- แสดงผล -->
-    <div id="result"></div>
+    <h3>เลือกช่วงเวลาเพื่อเช็คอิน</h3>
+    <div class="time-buttons">
+      <button onclick="checkIn('เช้า')">เช้า</button>
+      <button onclick="checkIn('กลางวัน')">กลางวัน</button>
+      <button onclick="checkIn('บ่าย')">บ่าย</button>
+      <button onclick="checkIn('เย็น')">เย็น</button>
+    </div>
+
+    <div id="result" style="font-weight: bold; padding: 15px; border-radius: 8px;"></div>
+    <hr>
+        <div id="map" style="height: 300px; width: 100%; margin-top: 20px;"></div>
 
   </div>
 
-<script src="script.js"></script>
+  <script src="script.js"></script>
 
-<!-- ⚠️ ใส่ API KEY ของคุณ -->
-<script async
-src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB8-zxclxIJk-EH8SyRmejQCxlOWMzDrX8&libraries=geometry&callback=initMap">
-</script>
+  
 
 </body>
 </html>
