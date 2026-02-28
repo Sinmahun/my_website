@@ -197,19 +197,21 @@ async function sendDataToServer(period, location) {
     formData.append("lng", location.lng);
 
     try {
-        // 1. แสดงสถานะกำลังโหลดใน div
         resultDiv.style.backgroundColor = "#e3f2fd";
         resultDiv.style.color = "#1565c0";
         resultDiv.innerHTML = `⌛ กำลังบันทึกข้อมูล "${period}" ลงระบบ...`;
 
-        const response = await fetch("http://localhost:3000/check", {
+        // ✅ แก้ตรงนี้: เอา localhost ออก และใช้ /api/check
+        const response = await fetch("/api/check", {
             method: "POST",
             body: formData
         });
 
-        if (response.ok) {
-            // --- 2. กรณีทำรายการสำเร็จ ---
+        const data = await response.json();
+
+        if (response.ok && data.success) {
             const timeString = new Date().toLocaleTimeString('th-TH');
+
             resultDiv.style.backgroundColor = "#e8f5e9";
             resultDiv.style.color = "#2e7d32";
             resultDiv.style.border = "2px solid #2e7d32";
@@ -221,19 +223,18 @@ async function sendDataToServer(period, location) {
                 </div>
             `;
 
-            // 3. แสดง Pop-up แจ้งเตือน
-            
             setTimeout(() => {
                 alert(`🎯 ลงเวลาเรียบร้อยแล้ว!\nช่วงเวลา: ${period}\nเวลา: ${timeString} น.`);
             }, 100);
 
-            console.log("บันทึกสำเร็จ");
+            console.log("บันทึกสำเร็จใน Database");
 
         } else {
             resultDiv.style.backgroundColor = "#fff3e0";
             resultDiv.style.color = "#ef6c00";
-            resultDiv.innerHTML = `❌ Server Error: ไม่สามารถบันทึกได้ (Code: ${response.status})`;
+            resultDiv.innerHTML = `❌ Server Error: ${data.message || "ไม่สามารถบันทึกได้"}`;
         }
+
     } catch (err) {
         resultDiv.style.backgroundColor = "#ffebee";
         resultDiv.style.color = "#c62828";
