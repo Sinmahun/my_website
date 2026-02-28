@@ -79,6 +79,12 @@ app.post("/check", upload.single("image"), (req, res) => {
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "homepage.html"));
 });
+app.get("/check", (req, res) => {
+  res.sendFile(path.join(__dirname, "style.css"));
+});
+app.get("/check", (req, res) => {
+  res.sendFile(path.join(__dirname, "script.js"));
+});
 
 /* ------------------ สำคัญมากสำหรับ Railway ------------------ */
 const PORT = process.env.PORT || 3000;
