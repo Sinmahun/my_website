@@ -11,6 +11,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+/* ------------------ Serve Static Files (สำคัญ!) ------------------ */
+app.use(express.static(__dirname)); // Serve all files in root directory
+
 /* ------------------ สร้าง uploads ถ้ายังไม่มี ------------------ */
 const uploadPath = path.join(__dirname, "uploads");
 
@@ -50,8 +53,7 @@ db.connect(err => {
 });
 
 /* ------------------ API บันทึกข้อมูล ------------------ */
-app.post("/check", upload.single("image"), (req, res) => {
-
+app.post("/api/check", upload.single("image"), (req, res) => {
   if (!req.file) {
     return res.status(400).send("No image uploaded");
   }
@@ -72,23 +74,20 @@ app.post("/check", upload.single("image"), (req, res) => {
       res.send("บันทึกสำเร็จ");
     }
   });
-
 });
 
-/* ------------------ Health Check ------------------ */
+/* ------------------ Routes สำหรับหน้าเว็บ ------------------ */
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "homepage.html"));
 });
+
 app.get("/check", (req, res) => {
-  res.sendFile(path.join(__dirname, "style.css"));
-});
-app.get("/check", (req, res) => {
-  res.sendFile(path.join(__dirname, "script.js"));
+  res.sendFile(path.join(__dirname, "check.html")); // ถ้ามีไฟล์ check.html
 });
 
 /* ------------------ สำคัญมากสำหรับ Railway ------------------ */
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log("Server running on port " + PORT);
 });
