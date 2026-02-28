@@ -30,24 +30,24 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// MySQL connection with fallback values
-const db = mysql.createConnection({
-  host: process.env.MYSQLHOST || "localhost",
-  user: process.env.MYSQLUSER || "root",
-  password: process.env.MYSQLPASSWORD || "",
-  database: process.env.MYSQLDATABASE || "mydatabase",
-  port: process.env.MYSQLPORT || 3306
+// MySQL Connection Pool (แนะนำให้ใช้ Pool แทน Connection)
+const pool = mysql.createPool({
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-// Connect to database and create table
-db.connect((err) => {
-  if (err) {
-    console.error("Database connection failed:", err.message);
-    console.log("⚠️  Running without database...");
-  } else {
-    console.log("✅ Database connected");
-    
-    // Create table if not exists
+// Convert pool to promise-based
+const promisePool = pool.promise();
+
+// Create table function
+async function createTable() {
+  try {
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS attendance (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -57,18 +57,34 @@ db.connect((err) => {
       )
     `;
     
-    db.query(createTableSQL, (err) => {
-      if (err) {
-        console.error("Error creating table:", err);
-      } else {
-        console.log("✅ Table 'attendance' is ready");
-      }
-    });
+    await promisePool.execute(createTableSQL);
+    console.log("✅ Table 'attendance' created successfully");
+  } catch (error) {
+    console.error("❌ Error creating table:", error.message);
   }
-});
+}
+
+// Initialize database
+async function initializeDatabase() {
+  try {
+    // Test connection
+    const connection = await promisePool.getConnection();
+    console.log("✅ Database connected successfully");
+    connection.release();
+    
+    // Create table
+    await createTable();
+  } catch (error) {
+    console.error("❌ Database connection failed:", error.message);
+    console.log("⚠️  Running without database...");
+  }
+}
+
+// Initialize on startup
+initializeDatabase();
 
 // API Routes
-app.post("/api/check", upload.single("image"), (req, res) => {
+app.post("/api/check", upload.single("image"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "No image uploaded" });
   }
@@ -76,24 +92,36 @@ app.post("/api/check", upload.single("image"), (req, res) => {
   const period = req.body.period;
   const image = req.file.filename;
 
-  const sql = `INSERT INTO attendance (image, period) VALUES (?, ?)`;
+  try {
+    const sql = `INSERT INTO attendance (image, period) VALUES (?, ?)`;
+    const [result] = await promisePool.execute(sql, [image, period]);
+    
+    res.json({ 
+      success: true, 
+      message: "บันทึกสำเร็จใน Database",
+      data: {
+        id: result.insertId,
+        image: image,
+        period: period
+      }
+    });
+  } catch (error) {
+    console.error("Database error:", error);
+    res.status(500).json({ success: false, message: "Database Error" });
+  }
+});
 
-  db.query(sql, [image, period], (err, result) => {
-    if (err) {
-      console.log("Database error:", err);
-      res.status(500).json({ success: false, message: "Database Error" });
-    } else {
-      res.json({ 
-        success: true, 
-        message: "บันทึกสำเร็จ",
-        data: {
-          id: result.insertId,
-          image: image,
-          period: period
-        }
-      });
-    }
-  });
+// API ดึงข้อมูลทั้งหมด
+app.get("/api/records", async (req, res) => {
+  try {
+    const sql = "SELECT * FROM attendance ORDER BY created_at DESC";
+    const [rows] = await promisePool.execute(sql);
+    
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error("Database error:", error);
+    res.status(500).json({ success: false, message: "Database Error" });
+  }
 });
 
 // Serve HTML pages
@@ -105,18 +133,27 @@ app.get("/check", (req, res) => {
   res.sendFile(path.join(__dirname, "check.html"));
 });
 
-// Health check
-app.get("/api/health", (req, res) => {
-  res.json({ 
-    status: "OK", 
-    timestamp: new Date().toISOString(),
-    database: db.state === "connected" ? "connected" : "disconnected"
-  });
+app.get("/records", (req, res) => {
+  res.sendFile(path.join(__dirname, "records.html"));
 });
 
-// Error handling
-app.use((req, res) => {
-  res.status(404).json({ error: "Not found" });
+// Health check endpoint
+app.get("/api/health", async (req, res) => {
+  try {
+    const [result] = await promisePool.execute("SELECT 1 as status");
+    res.json({ 
+      status: "OK", 
+      database: "connected",
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({ 
+      status: "OK", 
+      database: "disconnected",
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // Start server
