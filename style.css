@@ -43,3 +43,30 @@ button:hover {
   width: 100%;
   margin-bottom: 10px;
 }
+
+.action-buttons {
+  margin: 20px 0;
+  text-align: center;
+}
+
+.records-btn {
+  background-color: #28a745;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.records-btn:hover {
+  background-color: #218838;
+}
+
+.records-btn:active {
+  background-color: #1e7e34;
+}

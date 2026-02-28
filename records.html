@@ -1,72 +1,178 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
 <head>
-    <title>ดูข้อมูล Attendance</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; }
-        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        img { max-width: 200px; height: auto; border-radius: 5px; }
-        .btn { background: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
-        .btn:hover { background: #0056b3; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ประวัติการลงชื่อ</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .back-btn {
+      background-color: #6c757d;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .back-btn:hover {
+      background-color: #5a6268;
+    }
+    
+    .record-card {
+      border: 1px solid #dee2e6;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 15px;
+      background: #f8f9fa;
+    }
+    
+    .record-image {
+      max-width: 250px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    
+    .error-message {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+    
+    .info-message {
+      background: #d1ecf1;
+      color: #0c5460;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📊 ข้อมูล Attendance จาก Database</h1>
-        <button class="btn" onclick="loadRecords()">โหลดข้อมูล</button>
-        <div id="loading" style="display: none;">กำลังโหลด...</div>
-        <div id="records"></div>
+  <div class="container">
+    <button onclick="goBack()" class="back-btn">⬅ กลับหน้าหลัก</button>
+    <h1>📊 ประวัติการลงชื่อ</h1>
+    <hr>
+    
+    <div class="controls">
+      <button onclick="loadRecords()" style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;">
+        🔄 โหลดข้อมูลล่าสุด
+      </button>
+      <span id="lastUpdate" style="margin-left: 15px; color: #666;"></span>
     </div>
+    
+    <div id="loading" style="text-align: center; padding: 20px; display: none;">
+      <div style="color: #007bff;">⏳ กำลังโหลดข้อมูล...</div>
+    </div>
+    
+    <div id="statusMessage"></div>
+    
+    <div id="recordsContainer" style="margin-top: 30px;"></div>
+  </div>
 
-    <script>
-        async function loadRecords() {
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('records').innerHTML = '';
-            
-            try {
-                const response = await fetch('/api/records');
-                const data = await response.json();
-                
-                if (data.success) {
-                    let html = '<h2>รายการทั้งหมด (' + data.data.length + ' รายการ)</h2>';
-                    
-                    if (data.data.length === 0) {
-                        html += '<p>ยังไม่มีข้อมูลใน Database</p>';
-                    } else {
-                        html += '<table>';
-                        html += '<tr><th>ID</th><th>ภาพ</th><th>ช่วงเวลา</th><th>วันที่บันทึก</th></tr>';
-                        
-                        data.data.forEach(record => {
-                            html += `
-                                <tr>
-                                    <td>${record.id}</td>
-                                    <td><img src="/uploads/${record.image}" alt="รูปภาพ"></td>
-                                    <td>${record.period}</td>
-                                    <td>${new Date(record.created_at).toLocaleString('th-TH')}</td>
-                                </tr>
-                            `;
-                        });
-                        
-                        html += '</table>';
-                    }
-                    
-                    document.getElementById('records').innerHTML = html;
-                } else {
-                    document.getElementById('records').innerHTML = '<p>เกิดข้อผิดพลาด: ' + data.message + '</p>';
-                }
-            } catch (error) {
-                document.getElementById('records').innerHTML = '<p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>';
-                console.error('Error:', error);
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-            }
+  <script>
+    function goBack() {
+      window.location.href = "/";
+    }
+    
+    function showMessage(message, type = 'info') {
+      const messageDiv = document.getElementById('statusMessage');
+      messageDiv.innerHTML = `
+        <div class="${type === 'error' ? 'error-message' : 'info-message'}">
+          ${type === 'error' ? '❌' : 'ℹ️'} ${message}
+        </div>
+      `;
+    }
+    
+    function clearMessage() {
+      document.getElementById('statusMessage').innerHTML = '';
+    }
+    
+    async function loadRecords() {
+      const loading = document.getElementById('loading');
+      const container = document.getElementById('recordsContainer');
+      
+      loading.style.display = 'block';
+      container.innerHTML = '';
+      clearMessage();
+      
+      try {
+        const response = await fetch('/api/records');
+        const data = await response.json();
+        
+        document.getElementById('lastUpdate').textContent = 'อัพเดตล่าสุด: ' + new Date().toLocaleString('th-TH');
+        
+        if (!data.success) {
+          showMessage(`เกิดข้อผิดพลาด: ${data.message}`, 'error');
+          container.innerHTML = `
+            <div style="text-align: center; padding: 30px;">
+              <p>ไม่สามารถโหลดข้อมูลได้</p>
+              <button onclick="testDatabase()" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 4px; margin: 5px;">
+                ทดสอบการเชื่อมต่อ Database
+              </button>
+            </div>
+          `;
+          return;
         }
         
-        // โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า
-        window.onload = loadRecords;
-    </script>
+        if (data.data && data.data.length > 0) {
+          let html = '<div class="stats" style="margin-bottom: 20px; padding: 15px; background: #e9ecef; border-radius: 8px;">';
+          html += `<strong>ทั้งหมด:</strong> ${data.data.length} รายการ</div>`;
+          
+          data.data.forEach(record => {
+            html += `
+              <div class="record-card">
+                <div>
+                  <strong>รหัส:</strong> #${record.id}
+                  <strong>ช่วงเวลา:</strong> ${record.period}
+                  <strong>บันทึกเวลา:</strong> ${new Date(record.created_at).toLocaleString('th-TH')}
+                </div>
+                <div style="margin-top: 10px;">
+                  <strong>ภาพ:</strong>
+                  <img src="/uploads/${record.image}" alt="ภาพลงชื่อ" class="record-image" 
+                       onerror="this.style.display='none'; this.parentElement.innerHTML+='<p style=color:red;>⚠️ ไม่พบภาพ</p>'">
+                </div>
+              </div>
+            `;
+          });
+          
+          container.innerHTML = html;
+        } else {
+          showMessage('ยังไม่มีข้อมูลการลงชื่อในระบบ', 'info');
+          container.innerHTML = `
+            <div style="text-align: center; padding: 50px;">
+              <div style="font-size: 48px;">📭</div>
+              <h3 style="color: #6c757d;">ยังไม่มีข้อมูล</h3>
+              <p>ไปที่หน้าหลักเพื่อบันทึกข้อมูลการลงชื่อครั้งแรก</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        showMessage(`การเชื่อมต่อล้มเหลว: ${error.message}`, 'error');
+        console.error('Error loading records:', error);
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+    
+    async function testDatabase() {
+      try {
+        const response = await fetch('/api/health');
+        const data = await response.json();
+        alert(`สถานะ Database: ${data.database}\nข้อความ: ${data.message || data.error || 'OK'}`);
+      } catch (error) {
+        alert('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+      }
+    }
+    
+    // โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า
+    window.addEventListener('DOMContentLoaded', loadRecords);
+  </script>
 </body>
 </html>
