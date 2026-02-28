@@ -77,7 +77,7 @@ app.post("/check", upload.single("image"), (req, res) => {
 
 /* ------------------ Health Check ------------------ */
 app.get("/", (req, res) => {
-  res.send("Server is running 🚀");
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 /* ------------------ สำคัญมากสำหรับ Railway ------------------ */
