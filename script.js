@@ -241,3 +241,8 @@ async function sendDataToServer(period, location) {
         console.error("Fetch Error:", err);
     }
 }
+
+// records
+function goToRecords() {
+  window.location.href = "/records";
+}
