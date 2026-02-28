@@ -1,9 +1,9 @@
 const express = require("express");
-const sqlite3 = require('sqlite3').verbose();
-const path = require("path");
+const mysql = require("mysql2");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
 
@@ -12,61 +12,116 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// SQLite Database
-const dbPath = path.join(__dirname, 'database.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Database connection failed:', err);
-    } else {
-        console.log('Connected to SQLite database');
-        // สร้าง table อัตโนมัติ
-        db.run(`CREATE TABLE IF NOT EXISTS attendance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            image TEXT NOT NULL,
-            period TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-    }
-});
-
-// Uploads setup (เหมือนเดิม)
+// Uploads directory
 const uploadPath = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+if (!fs.existsSync(uploadPath)) {
+  fs.mkdirSync(uploadPath);
+}
+app.use("/uploads", express.static(uploadPath));
 
+// Multer configuration
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadPath),
-    filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname)
+  destination: function (req, file, cb) {
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "-" + file.originalname);
+  }
 });
-const upload = multer({ storage });
+const upload = multer({ storage: storage });
 
-// API (ง่ายกว่า MySQL)
+// MySQL connection with fallback values
+const db = mysql.createConnection({
+  host: process.env.MYSQLHOST || "localhost",
+  user: process.env.MYSQLUSER || "root",
+  password: process.env.MYSQLPASSWORD || "",
+  database: process.env.MYSQLDATABASE || "mydatabase",
+  port: process.env.MYSQLPORT || 3306
+});
+
+// Connect to database and create table
+db.connect((err) => {
+  if (err) {
+    console.error("Database connection failed:", err.message);
+    console.log("⚠️  Running without database...");
+  } else {
+    console.log("✅ Database connected");
+    
+    // Create table if not exists
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS attendance (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        image VARCHAR(255) NOT NULL,
+        period VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    db.query(createTableSQL, (err) => {
+      if (err) {
+        console.error("Error creating table:", err);
+      } else {
+        console.log("✅ Table 'attendance' is ready");
+      }
+    });
+  }
+});
+
+// API Routes
 app.post("/api/check", upload.single("image"), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "No image" });
-    
-    const { period } = req.body;
-    const image = req.file.filename;
-    
-    db.run("INSERT INTO attendance (image, period) VALUES (?, ?)", 
-        [image, period], 
-        function(err) {
-            if (err) {
-                res.status(500).json({ error: "Database error" });
-            } else {
-                res.json({ 
-                    success: true, 
-                    id: this.lastID,
-                    message: "บันทึกสำเร็จ" 
-                });
-            }
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "No image uploaded" });
+  }
+
+  const period = req.body.period;
+  const image = req.file.filename;
+
+  const sql = `INSERT INTO attendance (image, period) VALUES (?, ?)`;
+
+  db.query(sql, [image, period], (err, result) => {
+    if (err) {
+      console.log("Database error:", err);
+      res.status(500).json({ success: false, message: "Database Error" });
+    } else {
+      res.json({ 
+        success: true, 
+        message: "บันทึกสำเร็จ",
+        data: {
+          id: result.insertId,
+          image: image,
+          period: period
         }
-    );
+      });
+    }
+  });
 });
 
-// Routes
+// Serve HTML pages
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "homepage.html"));
+  res.sendFile(path.join(__dirname, "homepage.html"));
 });
 
-app.listen(process.env.PORT || 3000, () => {
-    console.log("Server running");
+app.get("/check", (req, res) => {
+  res.sendFile(path.join(__dirname, "check.html"));
+});
+
+// Health check
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "OK", 
+    timestamp: new Date().toISOString(),
+    database: db.state === "connected" ? "connected" : "disconnected"
+  });
+});
+
+// Error handling
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📁 Static files serving from: ${__dirname}`);
 });
