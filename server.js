@@ -1,93 +1,72 @@
 const express = require("express");
-const mysql = require("mysql2");
+const sqlite3 = require('sqlite3').verbose();
+const path = require("path");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
-const path = require("path");
 
 const app = express();
 
-/* ------------------ Middleware ------------------ */
+// Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 
-/* ------------------ Serve Static Files (สำคัญ!) ------------------ */
-app.use(express.static(__dirname)); // Serve all files in root directory
-
-/* ------------------ สร้าง uploads ถ้ายังไม่มี ------------------ */
-const uploadPath = path.join(__dirname, "uploads");
-
-if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath);
-}
-
-app.use("/uploads", express.static(uploadPath));
-
-/* ------------------ ตั้งค่าการเก็บไฟล์ ------------------ */
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + "-" + file.originalname);
-  }
-});
-
-const upload = multer({ storage: storage });
-
-/* ------------------ เชื่อม Database (Railway MySQL) ------------------ */
-const db = mysql.createConnection({
-  host: process.env.MYSQLHOST,
-  user: process.env.MYSQLUSER,
-  password: process.env.MYSQLPASSWORD,
-  database: process.env.MYSQLDATABASE,
-  port: process.env.MYSQLPORT
-});
-
-db.connect(err => {
-  if (err) {
-    console.error("Database connection failed:", err);
-  } else {
-    console.log("Database connected");
-  }
-});
-
-/* ------------------ API บันทึกข้อมูล ------------------ */
-app.post("/api/check", upload.single("image"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).send("No image uploaded");
-  }
-
-  const period = req.body.period;
-  const image = req.file.filename;
-
-  const sql = `
-    INSERT INTO attendance (image, period)
-    VALUES (?, ?)
-  `;
-
-  db.query(sql, [image, period], (err) => {
+// SQLite Database
+const dbPath = path.join(__dirname, 'database.sqlite');
+const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
-      console.log(err);
-      res.status(500).send("Database Error");
+        console.error('Database connection failed:', err);
     } else {
-      res.send("บันทึกสำเร็จ");
+        console.log('Connected to SQLite database');
+        // สร้าง table อัตโนมัติ
+        db.run(`CREATE TABLE IF NOT EXISTS attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image TEXT NOT NULL,
+            period TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
     }
-  });
 });
 
-/* ------------------ Routes สำหรับหน้าเว็บ ------------------ */
+// Uploads setup (เหมือนเดิม)
+const uploadPath = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadPath),
+    filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname)
+});
+const upload = multer({ storage });
+
+// API (ง่ายกว่า MySQL)
+app.post("/api/check", upload.single("image"), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No image" });
+    
+    const { period } = req.body;
+    const image = req.file.filename;
+    
+    db.run("INSERT INTO attendance (image, period) VALUES (?, ?)", 
+        [image, period], 
+        function(err) {
+            if (err) {
+                res.status(500).json({ error: "Database error" });
+            } else {
+                res.json({ 
+                    success: true, 
+                    id: this.lastID,
+                    message: "บันทึกสำเร็จ" 
+                });
+            }
+        }
+    );
+});
+
+// Routes
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "homepage.html"));
+    res.sendFile(path.join(__dirname, "homepage.html"));
 });
 
-app.get("/check", (req, res) => {
-  res.sendFile(path.join(__dirname, "check.html")); // ถ้ามีไฟล์ check.html
-});
-
-/* ------------------ สำคัญมากสำหรับ Railway ------------------ */
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log("Server running on port " + PORT);
+app.listen(process.env.PORT || 3000, () => {
+    console.log("Server running");
 });
