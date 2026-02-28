@@ -53,31 +53,6 @@ db.getConnection((err, connection) => {
   connection.release();
 });
 
-db.connect((err) => {
-  if (err) {
-    console.error("❌ Database connection failed:", err);
-    process.exit(1); // ให้แอป crash ไปเลยถ้า DB ไม่ได้
-  }
-  console.log("✅ Database connected");
-
-  // Create table
-  const createTable = `
-    CREATE TABLE IF NOT EXISTS attendance (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      image VARCHAR(255) NOT NULL,
-      period VARCHAR(50) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `;
-
-  db.query(createTable, (err) => {
-    if (err) {
-      console.error("❌ Create table error:", err);
-    } else {
-      console.log("✅ Table attendance ready");
-    }
-  });
-});
 
 // ================= API =================
 
