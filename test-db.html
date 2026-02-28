@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>ทดสอบ Database</title>
+</head>
+<body>
+    <h1>🧪 ทดสอบการเชื่อมต่อ Database</h1>
+    <button onclick="testConnection()">ทดสอบ Connection</button>
+    <button onclick="testRecords()">ทดสอบดึงข้อมูล</button>
+    <div id="result"></div>
+
+    <script>
+        async function testConnection() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                document.getElementById('result').innerHTML = `
+                    <h3>ผลการทดสอบ:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3 style="color: red;">❌ Connection Failed</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        async function testRecords() {
+            try {
+                const response = await fetch('/api/records');
+                const data = await response.json();
+                document.getElementById('result').innerHTML = `
+                    <h3>ผลการดึงข้อมูล:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3 style="color: red;">❌ Records Failed</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
